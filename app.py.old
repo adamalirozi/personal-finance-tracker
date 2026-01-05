@@ -1,0 +1,62 @@
+from flask import Flask, jsonify
+from flask_cors import CORS
+from flask_jwt_extended import JWTManager
+from config import Config
+from models import db
+from routes.users import users_bp
+from routes.transactions import transactions_bp
+
+def create_app():
+    app = Flask(__name__)
+    app.config.from_object(Config)
+    
+    # Configure CORS properly
+    CORS(app, resources={
+        r"/api/*": {
+            "origins": "*",
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization"]
+        }
+    })
+    
+    db.init_app(app)
+    jwt = JWTManager(app)
+    
+    # Add error handlers for JWT
+    @jwt.expired_token_loader
+    def expired_token_callback(jwt_header, jwt_payload):
+        return jsonify({
+            'error': 'Token has expired',
+            'message': 'Please login again'
+        }), 401
+    
+    @jwt.invalid_token_loader
+    def invalid_token_callback(error):
+        return jsonify({
+            'error': 'Invalid token',
+            'message': 'Token verification failed'
+        }), 422
+    
+    @jwt.unauthorized_loader
+    def missing_token_callback(error):
+        return jsonify({
+            'error': 'Authorization required',
+            'message': 'Request does not contain a valid token'
+        }), 401
+    
+    app.register_blueprint(users_bp, url_prefix='/api/users')
+    app.register_blueprint(transactions_bp, url_prefix='/api/transactions')
+    
+    # Add a test route
+    @app.route('/api/health', methods=['GET'])
+    def health():
+        return jsonify({'status': 'healthy'}), 200
+    
+    with app.app_context():
+        db.create_all()
+    
+    return app
+
+if __name__ == '__main__':
+    app = create_app()
+    app.run(debug=True, port=5000)
