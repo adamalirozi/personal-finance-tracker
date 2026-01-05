@@ -1005,3 +1005,949 @@ function Charts({ analytics }) {
                   }}></div>
                   <div style={styles.categoryInfo}>
                     <span style={styles.categoryName}>{item.category}</span>
+                    <span style={styles.categoryAmount}>
+                      ${item.total.toFixed(2)} ({percentage}%)
+                    </span>
+                  </div>
+                  <div style={styles.barContainer}>
+                    <div style={{
+                      ...styles.bar,
+                      width: `${percentage}%`,
+                      backgroundColor: colors[index % colors.length]
+                    }}></div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p style={styles.noData}>No expense data available</p>
+        )}
+      </div>
+
+      {/* Monthly Trends */}
+      <div style={styles.chartSection}>
+        <h4>Monthly Trends</h4>
+        {monthlyData.length > 0 ? (
+          <div style={styles.monthlyChart}>
+            {monthlyData.map(item => {
+              const maxValue = Math.max(...monthlyData.map(d => Math.max(d.income, d.expense)));
+              const incomeHeight = (item.income / maxValue * 100);
+              const expenseHeight = (item.expense / maxValue * 100);
+              
+              return (
+                <div key={item.month} style={styles.monthItem}>
+                  <div style={styles.bars}>
+                    <div style={styles.barGroup}>
+                      <div style={{
+                        ...styles.monthBar,
+                        height: `${incomeHeight}px`,
+                        backgroundColor: '#28a745',
+                        minHeight: item.income > 0 ? '5px' : '0'
+                      }}></div>
+                      <span style={styles.barLabel}>
+                        ${item.income.toFixed(0)}
+                      </span>
+                    </div>
+                    <div style={styles.barGroup}>
+                      <div style={{
+                        ...styles.monthBar,
+                        height: `${expenseHeight}px`,
+                        backgroundColor: '#dc3545',
+                        minHeight: item.expense > 0 ? '5px' : '0'
+                      }}></div>
+                      <span style={styles.barLabel}>
+                        ${item.expense.toFixed(0)}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={styles.monthLabel}>{item.month}</div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p style={styles.noData}>No monthly data available</p>
+        )}
+      </div>
+
+      {/* Top Categories */}
+      <div style={styles.chartSection}>
+        <h4>Top 5 Expense Categories</h4>
+        {top_expense_categories && top_expense_categories.length > 0 ? (
+          <div style={styles.topList}>
+            {top_expense_categories.map(([category, amount], index) => (
+              <div key={category} style={styles.topItem}>
+                <span style={styles.rank}>{index + 1}</span>
+                <span style={styles.topCategory}>{category}</span>
+                <span style={styles.topAmount}>${amount.toFixed(2)}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p style={styles.noData}>No expense data available</p>
+        )}
+      </div>
+    </div>
+  );
+}
+```
+
+**Props**:
+- `analytics`: Object containing analytics data from API
+
+**Visualizations**:
+1. **Category Breakdown**: Horizontal bar chart with percentages
+2. **Monthly Trends**: Vertical bar chart comparing income vs expenses
+3. **Top Categories**: Ranked list of highest expense categories
+
+**Features**:
+- Color-coded visual elements
+- Percentage calculations
+- Responsive bar heights based on data
+- Empty state handling
+
+---
+
+### 12. `src/components/BudgetTracker.jsx`
+**Purpose**: Manage and track monthly budgets by category.
+
+```javascript
+import React, { useState, useEffect, useCallback } from 'react';
+import { budgetsAPI } from '../services/api';
+
+function BudgetTracker() {
+  const [budgets, setBudgets] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [formData, setFormData] = useState({
+    category: '',
+    amount: '',
+  });
+  const [currentMonth] = useState(new Date().getMonth() + 1);
+  const [currentYear] = useState(new Date().getFullYear());
+
+  const fetchBudgets = useCallback(async () => {
+    try {
+      const response = await budgetsAPI.getAll(currentMonth, currentYear);
+      setBudgets(response.data);
+    } catch (error) {
+      console.error('Error fetching budgets:', error);
+    }
+  }, [currentMonth, currentYear]);
+
+  useEffect(() => {
+    fetchBudgets();
+  }, [fetchBudgets]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await budgetsAPI.create({
+        ...formData,
+        month: currentMonth,
+        year: currentYear
+      });
+      setFormData({ category: '', amount: '' });
+      setShowForm(false);
+      fetchBudgets();
+    } catch (error) {
+      console.error('Error creating budget:', error);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (window.confirm('Delete this budget?')) {
+      try {
+        await budgetsAPI.delete(id);
+        fetchBudgets();
+      } catch (error) {
+        console.error('Error deleting budget:', error);
+      }
+    }
+  };
+
+  const getStatusColor = (percentage) => {
+    if (percentage < 70) return '#28a745';  // Green - safe
+    if (percentage < 90) return '#ffc107';  // Yellow - warning
+    return '#dc3545';  // Red - alert
+  };
+
+  return (
+    <div style={styles.container}>
+      <div style={styles.header}>
+        <h3>Budget Tracker - {new Date(currentYear, currentMonth - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}</h3>
+        <button onClick={() => setShowForm(!showForm)} style={styles.addButton}>
+          {showForm ? 'Cancel' : '+ Add Budget'}
+        </button>
+      </div>
+
+      {showForm && (
+        <form onSubmit={handleSubmit} style={styles.form}>
+          <input
+            type="text"
+            placeholder="Category"
+            value={formData.category}
+            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+            style={styles.input}
+            required
+          />
+          <input
+            type="number"
+            step="0.01"
+            placeholder="Budget Amount"
+            value={formData.amount}
+            onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+            style={styles.input}
+            required
+          />
+          <button type="submit" style={styles.submitButton}>Set Budget</button>
+        </form>
+      )}
+
+      <div style={styles.budgetList}>
+        {budgets.length === 0 ? (
+          <p style={styles.noBudgets}>No budgets set for this month</p>
+        ) : (
+          budgets.map(budget => (
+            <div key={budget.id} style={styles.budgetItem}>
+              <div style={styles.budgetHeader}>
+                <h4>{budget.category}</h4>
+                <button onClick={() => handleDelete(budget.id)} style={styles.deleteButton}>
+                  ×
+                </button>
+              </div>
+              <div style={styles.budgetInfo}>
+                <div style={styles.amounts}>
+                  <span>Spent: ${budget.spent.toFixed(2)}</span>
+                  <span>Budget: ${budget.amount.toFixed(2)}</span>
+                  <span style={{ color: budget.remaining >= 0 ? '#28a745' : '#dc3545' }}>
+                    Remaining: ${budget.remaining.toFixed(2)}
+                  </span>
+                </div>
+                <div style={styles.progressBar}>
+                  <div style={{
+                    ...styles.progress,
+                    width: `${Math.min(budget.percentage, 100)}%`,
+                    backgroundColor: getStatusColor(budget.percentage)
+                  }}>
+                    <span style={styles.percentage}>{budget.percentage.toFixed(1)}%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+```
+
+**State Management**:
+- `budgets`: Array of budget objects with spending data
+- `showForm`: Toggle budget creation form
+- `formData`: New budget form data
+- `currentMonth/Year`: Current month/year for budget display
+
+**Features**:
+- Create budgets for specific categories
+- Automatic spending calculation from transactions
+- Visual progress bars with color coding
+- Delete budgets with confirmation
+- Monthly budget tracking
+
+**Color Coding**:
+- Green (< 70%): On track
+- Yellow (70-90%): Warning zone
+- Red (> 90%): Over budget alert
+
+---
+
+## Component Relationships
+
+### Component Hierarchy
+
+```
+App
+└── Login (if not authenticated)
+    OR
+└── Dashboard (if authenticated)
+    ├── FilterBar (shared)
+    ├── TransactionForm
+    ├── TransactionList
+    ├── Charts
+    └── BudgetTracker
+```
+
+### Data Flow Diagram
+
+```
+                    ┌─────────┐
+                    │  App.js │
+                    └────┬────┘
+                         │
+            ┌────────────┴────────────┐
+            │                         │
+       ┌────▼────┐             ┌─────▼─────┐
+       │ Login   │             │ Dashboard │
+       └────┬────┘             └─────┬─────┘
+            │                        │
+            │                        ├──→ TransactionForm
+            │                        ├──→ TransactionList
+            │                        ├──→ FilterBar
+            └──────── user ──────────┤
+                                     ├──→ Charts
+                                     └──→ BudgetTracker
+```
+
+### Props Flow
+
+```
+App
+├─→ Login: { onLoginSuccess }
+└─→ Dashboard: { user, onLogout }
+    ├─→ TransactionForm: { onSubmit, editingTransaction, onCancel }
+    ├─→ TransactionList: { transactions, onEdit, onDelete }
+    ├─→ FilterBar: { onFilterChange, categories }
+    ├─→ Charts: { analytics }
+    └─→ BudgetTracker: { (self-contained) }
+```
+
+---
+
+## State Management
+
+### Local Storage Usage
+
+```javascript
+// Token storage
+localStorage.setItem('token', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...');
+localStorage.getItem('token');
+localStorage.removeItem('token');
+
+// User data storage
+localStorage.setItem('user', JSON.stringify({ id: 1, username: 'john' }));
+const user = JSON.parse(localStorage.getItem('user'));
+```
+
+**Stored Data**:
+- `token`: JWT authentication token
+- `user`: User object (id, username, email)
+
+**Lifecycle**:
+- Set on login
+- Read on app mount
+- Cleared on logout
+- Cleared on auth error (401/422)
+
+### Component State Patterns
+
+**Dashboard State**:
+```javascript
+const [transactions, setTransactions] = useState([]);
+const [summary, setSummary] = useState({ total_income: 0, total_expenses: 0, balance: 0 });
+const [filters, setFilters] = useState({});
+const [activeTab, setActiveTab] = useState('transactions');
+```
+
+**Form State**:
+```javascript
+const [formData, setFormData] = useState({
+  amount: '',
+  category: '',
+  description: '',
+  transaction_type: 'expense',
+  date: new Date().toISOString().split('T')[0]
+});
+```
+
+**Loading/Error State**:
+```javascript
+const [loading, setLoading] = useState(true);
+const [error, setError] = useState('');
+```
+
+---
+
+## API Integration
+
+### Request Flow
+
+```
+Component Event
+    ↓
+Handler Function
+    ↓
+API Service (api.js)
+    ↓
+Axios Request
+    ↓
+Request Interceptor (adds JWT)
+    ↓
+Backend API
+    ↓
+Response Interceptor (checks auth)
+    ↓
+Component State Update
+    ↓
+UI Re-render
+```
+
+### Error Handling Pattern
+
+```javascript
+try {
+  setLoading(true);
+  setError('');
+  const response = await transactionsAPI.getAll();
+  setTransactions(response.data);
+} catch (error) {
+  console.error('Error:', error);
+  setError('Failed to fetch data');
+} finally {
+  setLoading(false);
+}
+```
+
+### Authentication Flow
+
+```
+1. User submits login form
+2. Login.jsx calls authAPI.login()
+3. api.js sends POST to /api/users/login
+4. Backend validates and returns token
+5. Token stored in localStorage
+6. User object passed to App.js
+7. App.js renders Dashboard
+8. All subsequent requests include token
+9. If token expires, interceptor redirects to login
+```
+
+---
+
+## Styling Approach
+
+### CSS-in-JS Pattern
+
+```javascript
+const styles = {
+  container: {
+    maxWidth: '1200px',
+    margin: '0 auto',
+    padding: '2rem',
+  },
+  button: {
+    padding: '0.5rem 1rem',
+    backgroundColor: '#007bff',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+  },
+};
+
+// Usage
+<div style={styles.container}>
+  <button style={styles.button}>Click Me</button>
+</div>
+```
+
+**Benefits**:
+- Component-scoped styles
+- No CSS class naming conflicts
+- Dynamic styles based on props/state
+- JavaScript variables in styles
+
+**Drawbacks**:
+- No CSS preprocessing (SASS features)
+- Styles not cached separately
+- No media queries (requires libraries)
+
+### Dynamic Styling
+
+```javascript
+// Conditional styles
+<p style={{ 
+  color: summary.balance >= 0 ? '#28a745' : '#dc3545'
+}}>
+  ${summary.balance.toFixed(2)}
+</p>
+
+// Merged styles
+<button style={{
+  ...styles.tab,
+  ...(activeTab === 'transactions' ? styles.activeTab : {})
+}}>
+  Transactions
+</button>
+```
+
+---
+
+## User Flow
+
+### Registration Flow
+```
+1. User opens app
+2. Sees Login component
+3. Clicks "Register"
+4. Fills username, email, password
+5. Submits form
+6. Success message shown
+7. Switched to login mode
+8. Can now login
+```
+
+### Login Flow
+```
+1. User enters credentials
+2. Submits form
+3. Token received and stored
+4. User object stored
+5. App.js updates state
+6. Dashboard rendered
+7. Initial data fetched
+8. User can interact with app
+```
+
+### Transaction Management Flow
+```
+1. User views transactions list
+2. Clicks "+ Add Transaction"
+3. Fills form (amount, category, etc.)
+4. Submits form
+5. API creates transaction
+6. List refreshes
+7. Summary updates
+8. Charts update (if on analytics tab)
+```
+
+### Filtering Flow
+```
+1. User selects filters
+2. Filter state updates
+3. Dashboard detects filter change
+4. Re-fetches transactions with filters
+5. List updates with filtered results
+6. Summary recalculates
+7. Analytics update
+```
+
+### Budget Tracking Flow
+```
+1. User switches to Budgets tab
+2. Clicks "+ Add Budget"
+3. Enters category and amount
+4. Budget created for current month
+5. System calculates spent amount
+6. Progress bar shows status
+7. Color indicates budget health
+```
+
+---
+
+## Future Improvements
+
+### 1. State Management Library
+
+**Problem**: Prop drilling through multiple components
+
+**Solution**: Redux or Context API
+```javascript
+// Context API example
+const FinanceContext = createContext();
+
+function FinanceProvider({ children }) {
+  const [transactions, setTransactions] = useState([]);
+  const [summary, setSummary] = useState({});
+  
+  return (
+    <FinanceContext.Provider value={{ 
+      transactions, 
+      setTransactions,
+      summary, 
+      setSummary 
+    }}>
+      {children}
+    </FinanceContext.Provider>
+  );
+}
+
+// Usage in any component
+const { transactions, setTransactions } = useContext(FinanceContext);
+```
+
+### 2. React Router
+
+**Problem**: No URL-based navigation
+
+**Solution**: React Router for proper routing
+```javascript
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Login />} />
+        <Route path="/dashboard" element={<Dashboard />}>
+          <Route path="transactions" element={<TransactionsTab />} />
+          <Route path="analytics" element={<AnalyticsTab />} />
+          <Route path="budgets" element={<BudgetsTab />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  );
+}
+```
+
+### 3. CSS Modules or Styled Components
+
+**Problem**: Inline styles limit reusability and maintainability
+
+**Solution**: CSS Modules
+```css
+/* Button.module.css */
+.primary {
+  padding: 0.5rem 1rem;
+  background-color: #007bff;
+  color: white;
+}
+
+.primary:hover {
+  background-color: #0056b3;
+}
+```
+
+```javascript
+import styles from './Button.module.css';
+
+<button className={styles.primary}>Click Me</button>
+```
+
+Or Styled Components:
+```javascript
+import styled from 'styled-components';
+
+const Button = styled.button`
+  padding: 0.5rem 1rem;
+  background-color: ${props => props.primary ? '#007bff' : '#6c757d'};
+  color: white;
+  
+  &:hover {
+    opacity: 0.8;
+  }
+`;
+
+<Button primary>Click Me</Button>
+```
+
+### 4. Chart Library
+
+**Problem**: Custom charts are basic and hard to maintain
+
+**Solution**: Use Recharts or Chart.js
+```javascript
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
+
+function MonthlyChart({ data }) {
+  return (
+    <BarChart width={600} height={300} data={data}>
+      <XAxis dataKey="month" />
+      <YAxis />
+      <Tooltip />
+      <Legend />
+      <Bar dataKey="income" fill="#28a745" />
+      <Bar dataKey="expense" fill="#dc3545" />
+    </BarChart>
+  );
+}
+```
+
+### 5. Form Validation
+
+**Problem**: Basic HTML5 validation only
+
+**Solution**: React Hook Form or Formik
+```javascript
+import { useForm } from 'react-hook-form';
+
+function TransactionForm() {
+  const { register, handleSubmit, formState: { errors } } = useForm();
+  
+  const onSubmit = (data) => {
+    // Handle form submission
+  };
+  
+  return (
+    <form onSubmit={handleSubmit(onSubmit)}>
+      <input
+        {...register('amount', { 
+          required: 'Amount is required',
+          min: { value: 0.01, message: 'Amount must be positive' }
+        })}
+      />
+      {errors.amount && <span>{errors.amount.message}</span>}
+    </form>
+  );
+}
+```
+
+### 6. Loading States
+
+**Problem**: No visual feedback during API calls
+
+**Solution**: Loading spinners and skeletons
+```javascript
+function TransactionList({ loading, transactions }) {
+  if (loading) {
+    return (
+      <div className="skeleton-loader">
+        {[1, 2, 3].map(i => (
+          <div key={i} className="skeleton-item" />
+        ))}
+      </div>
+    );
+  }
+  
+  return (
+    // Transaction list
+  );
+}
+```
+
+### 7. Responsive Design
+
+**Problem**: Desktop-only layout
+
+**Solution**: Media queries and mobile-first design
+```javascript
+const styles = {
+  container: {
+    maxWidth: '1200px',
+    margin: '0 auto',
+    padding: window.innerWidth < 768 ? '1rem' : '2rem',
+  }
+};
+
+// Or with CSS-in-JS library
+const Container = styled.div`
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+  
+  @media (max-width: 768px) {
+    padding: 1rem;
+  }
+`;
+```
+
+### 8. Accessibility (a11y)
+
+**Problem**: No keyboard navigation or screen reader support
+
+**Solution**: ARIA labels and semantic HTML
+```javascript
+<button
+  onClick={handleDelete}
+  aria-label={`Delete ${transaction.category} transaction`}
+>
+  Delete
+</button>
+
+<nav role="navigation" aria-label="Main navigation">
+  <button
+    role="tab"
+    aria-selected={activeTab === 'transactions'}
+    onClick={() => setActiveTab('transactions')}
+  >
+    Transactions
+  </button>
+</nav>
+```
+
+### 9. Error Boundaries
+
+**Problem**: Component errors crash entire app
+
+**Solution**: Error boundaries
+```javascript
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('Error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <h1>Something went wrong.</h1>;
+    }
+
+    return this.props.children;
+  }
+}
+
+// Usage
+<ErrorBoundary>
+  <Dashboard />
+</ErrorBoundary>
+```
+
+### 10. Performance Optimization
+
+**React.memo for expensive components**:
+```javascript
+const TransactionList = React.memo(({ transactions, onEdit, onDelete }) => {
+  // Component logic
+}, (prevProps, nextProps) => {
+  return prevProps.transactions === nextProps.transactions;
+});
+```
+
+**useMemo for expensive calculations**:
+```javascript
+const expensiveCalculation = useMemo(() => {
+  return transactions.reduce((sum, t) => 
+    sum + (t.transaction_type === 'expense' ? t.amount : 0), 0
+  );
+}, [transactions]);
+```
+
+**Virtual scrolling for large lists**:
+```javascript
+import { FixedSizeList } from 'react-window';
+
+<FixedSizeList
+  height={600}
+  itemCount={transactions.length}
+  itemSize={80}
+>
+  {({ index, style }) => (
+    <div style={style}>
+      {/* Transaction item */}
+    </div>
+  )}
+</FixedSizeList>
+```
+
+### 11. PWA Features
+
+**Service Worker**:
+```javascript
+// public/service-worker.js
+self.addEventListener('fetch', (event) => {
+  event.respondWith(
+    caches.match(event.request).then((response) => {
+      return response || fetch(event.request);
+    })
+  );
+});
+```
+
+**Manifest**:
+```json
+{
+  "short_name": "Finance Tracker",
+  "name": "Personal Finance Tracker",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#007bff",
+  "background_color": "#ffffff"
+}
+```
+
+### 12. Testing
+
+**Unit tests with Jest and React Testing Library**:
+```javascript
+import { render, screen, fireEvent } from '@testing-library/react';
+import TransactionForm from './TransactionForm';
+
+test('submits form with correct data', () => {
+  const mockSubmit = jest.fn();
+  render(<TransactionForm onSubmit={mockSubmit} />);
+  
+  fireEvent.change(screen.getByPlaceholderText('Amount'), {
+    target: { value: '100' }
+  });
+  
+  fireEvent.submit(screen.getByRole('button', { name: /add/i }));
+  
+  expect(mockSubmit).toHaveBeenCalledWith(
+    expect.objectContaining({ amount: '100' })
+  );
+});
+```
+
+---
+
+## Development Workflow
+
+### Setup
+```bash
+npm install
+npm start  # Development server
+npm run build  # Production build
+npm test  # Run tests
+```
+
+### Environment Variables
+```bash
+# .env.local
+REACT_APP_API_URL=http://localhost:5000/api
+```
+
+### Code Style
+- Use functional components with hooks
+- Follow React naming conventions
+- Use PropTypes or TypeScript for type checking
+- Keep components small and focused
+
+---
+
+## Deployment
+
+### Build for Production
+```bash
+npm run build
+```
+
+### Deployment Options
+1. **Netlify**: Drag and drop build folder
+2. **Vercel**: Connect GitHub repo
+3. **GitHub Pages**: `npm run deploy`
+4. **AWS S3**: Upload build folder
+5. **Docker**: Containerize with Nginx
+
+---
+
+## Contributing
+
+See main README.md for contribution guidelines.
+
+---
+
+## License
+
+MIT License - See LICENSE file for details
+
+---
+
+**Last Updated**: January 4, 2026  
+**Version**: 1.0  
+**Maintained By**: Development Team
